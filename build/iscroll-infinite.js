@@ -1,4 +1,4 @@
-/*! iScroll v5.2.0 ~ (c) 2008-2016 Matteo Spinelli ~ http://cubiq.org/license */
+/*! iScroll v5.2.0-snapshot ~ (c) 2008-2017 Matteo Spinelli ~ http://cubiq.org/license */
 (function (window, document, Math) {
 var rAF = window.requestAnimationFrame	||
 	window.webkitRequestAnimationFrame	||
@@ -124,7 +124,8 @@ var utils = (function () {
 		transitionTimingFunction: _prefixStyle('transitionTimingFunction'),
 		transitionDuration: _prefixStyle('transitionDuration'),
 		transitionDelay: _prefixStyle('transitionDelay'),
-		transformOrigin: _prefixStyle('transformOrigin')
+		transformOrigin: _prefixStyle('transformOrigin'),
+		touchAction: _prefixStyle('touchAction')
 	});
 
 	me.hasClass = function (e, c) {
@@ -278,6 +279,39 @@ var utils = (function () {
 		}
 	};
 
+	me.getTouchAction = function(eventPassthrough, addPinch) {
+		var touchAction = 'none';
+		if ( eventPassthrough === 'vertical' ) {
+			touchAction = 'pan-y';
+		} else if (eventPassthrough === 'horizontal' ) {
+			touchAction = 'pan-x';
+		}
+		if (addPinch && touchAction != 'none') {
+			// add pinch-zoom support if the browser supports it, but if not (eg. Chrome <55) do nothing
+			touchAction += ' pinch-zoom';
+		}
+		return touchAction;
+	};
+
+	me.getRect = function(el) {
+		if (el instanceof SVGElement) {
+			var rect = el.getBoundingClientRect();
+			return {
+				top : rect.top,
+				left : rect.left,
+				width : rect.width,
+				height : rect.height
+			};
+		} else {
+			return {
+				top : el.offsetTop,
+				left : el.offsetLeft,
+				width : el.offsetWidth,
+				height : el.offsetHeight
+			};
+		}
+	};
+
 	return me;
 })();
 function IScroll (el, options) {
@@ -382,7 +416,7 @@ function IScroll (el, options) {
 }
 
 IScroll.prototype = {
-	version: '5.2.0',
+	version: '5.2.0-snapshot',
 
 	_init: function () {
 		this._initEvents();
@@ -728,17 +762,18 @@ IScroll.prototype = {
 	},
 
 	refresh: function () {
-		var rf = this.wrapper.offsetHeight;		// Force reflow
+		utils.getRect(this.wrapper);		// Force reflow
 
 		this.wrapperWidth	= this.wrapper.clientWidth;
 		this.wrapperHeight	= this.wrapper.clientHeight;
 
+		var rect = utils.getRect(this.scroller);
 /* REPLACE START: refresh */
-		this.scrollerWidth	= this.scroller.offsetWidth;
-		this.scrollerHeight	= this.scroller.offsetHeight;
+		this.scrollerWidth	= rect.width;
+		this.scrollerHeight	= rect.height;
 
 		this.maxScrollX		= this.wrapperWidth - this.scrollerWidth;
-		
+
 		var limit;
 		if ( this.options.infiniteElements ) {
 			this.options.infiniteLimit = this.options.infiniteLimit || Math.floor(2147483645 / this.infiniteElementHeight);
@@ -749,7 +784,7 @@ IScroll.prototype = {
 
 		this.hasHorizontalScroll	= this.options.scrollX && this.maxScrollX < 0;
 		this.hasVerticalScroll		= this.options.scrollY && this.maxScrollY < 0;
-
+		
 		if ( !this.hasHorizontalScroll ) {
 			this.maxScrollX = 0;
 			this.scrollerWidth = this.wrapperWidth;
@@ -763,7 +798,17 @@ IScroll.prototype = {
 		this.endTime = 0;
 		this.directionX = 0;
 		this.directionY = 0;
+		
+		if(utils.hasPointer && !this.options.disablePointer) {
+			// The wrapper should have `touchAction` property for using pointerEvent.
+			this.wrapper.style[utils.style.touchAction] = utils.getTouchAction(this.options.eventPassthrough, true);
 
+			// case. not support 'pinch-zoom'
+			// https://github.com/cubiq/iscroll/issues/1118#issuecomment-270057583
+			if (!this.wrapper.style[utils.style.touchAction]) {
+				this.wrapper.style[utils.style.touchAction] = utils.getTouchAction(this.options.eventPassthrough, false);
+			}
+		}
 		this.wrapperOffset = utils.offset(this.wrapper);
 
 		this._execEvent('refresh');
@@ -772,7 +817,7 @@ IScroll.prototype = {
 
 // INSERT POINT: _refresh
 
-	},
+	},	
 
 	on: function (type, fn) {
 		if ( !this._events[type] ) {
@@ -848,11 +893,13 @@ IScroll.prototype = {
 		pos.top  -= this.wrapperOffset.top;
 
 		// if offsetX/Y are true we center the element to the screen
+		var elRect = utils.getRect(el);
+		var wrapperRect = utils.getRect(this.wrapper);
 		if ( offsetX === true ) {
-			offsetX = Math.round(el.offsetWidth / 2 - this.wrapper.offsetWidth / 2);
+			offsetX = Math.round(elRect.width / 2 - wrapperRect.width / 2);
 		}
 		if ( offsetY === true ) {
-			offsetY = Math.round(el.offsetHeight / 2 - this.wrapper.offsetHeight / 2);
+			offsetY = Math.round(elRect.height / 2 - wrapperRect.height / 2);
 		}
 
 		pos.left -= offsetX || 0;
@@ -1103,7 +1150,8 @@ IScroll.prototype = {
 				x = 0, y,
 				stepX = this.options.snapStepX || this.wrapperWidth,
 				stepY = this.options.snapStepY || this.wrapperHeight,
-				el;
+				el,
+				rect;
 
 			this.pages = [];
 
@@ -1143,7 +1191,8 @@ IScroll.prototype = {
 				n = -1;
 
 				for ( ; i < l; i++ ) {
-					if ( i === 0 || el[i].offsetLeft <= el[i-1].offsetLeft ) {
+					rect = utils.getRect(el[i]);
+					if ( i === 0 || rect.left <= utils.getRect(el[i-1]).left ) {
 						m = 0;
 						n++;
 					}
@@ -1152,16 +1201,16 @@ IScroll.prototype = {
 						this.pages[m] = [];
 					}
 
-					x = Math.max(-el[i].offsetLeft, this.maxScrollX);
-					y = Math.max(-el[i].offsetTop, this.maxScrollY);
-					cx = x - Math.round(el[i].offsetWidth / 2);
-					cy = y - Math.round(el[i].offsetHeight / 2);
+					x = Math.max(-rect.left, this.maxScrollX);
+					y = Math.max(-rect.top, this.maxScrollY);
+					cx = x - Math.round(rect.width / 2);
+					cy = y - Math.round(rect.height / 2);
 
 					this.pages[m][n] = {
 						x: x,
 						y: y,
-						width: el[i].offsetWidth,
-						height: el[i].offsetHeight,
+						width: rect.width,
+						height: rect.height,
 						cx: cx,
 						cy: cy
 					};
@@ -1507,7 +1556,7 @@ IScroll.prototype = {
 		this.infiniteElements = typeof el == 'string' ? document.querySelectorAll(el) : el;
 		this.infiniteLength = this.infiniteElements.length;
 		this.infiniteMaster = this.infiniteElements[0];
-		this.infiniteElementHeight = this.infiniteMaster.offsetHeight;
+		this.infiniteElementHeight = utils.getRect(this.infiniteMaster).height;
 		this.infiniteHeight = this.infiniteLength * this.infiniteElementHeight;
 
 		this.options.cacheSize = this.options.cacheSize || 1000;
