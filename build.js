@@ -15,6 +15,16 @@ var releases = {
 		]
 	},
 
+	'lite-snap': {
+		files: [
+			'indicator/_initIndicators.js',
+			'snap/snap.js',
+			'default/_animate.js',
+			'default/handleEvent.js'
+		],
+		postProcessing: [ 'snap/build.json' ]
+	},
+
 	iscroll: {
 		files: [
 			'indicator/_initIndicators.js',
@@ -75,7 +85,7 @@ if ( !args.length ) {
 }
 
 if ( args[0] == 'dist' ) {
-	args = ['lite', 'iscroll', 'zoom', 'probe', 'infinite'];
+	args = ['lite', 'lite-snap', 'iscroll', 'zoom', 'probe', 'infinite'];
 }
 
 // Get the list of files
@@ -114,7 +124,7 @@ function build (release) {
 
 			// Insert point
 			for ( var i in postProcessing.insert ) {
-				value = postProcessing.insert[i].substr(postProcessing.insert[i].length-3) == '.js' ? 
+				value = postProcessing.insert[i].substr(postProcessing.insert[i].length-3) == '.js' ?
 					fs.readFileSync('src/' + postProcessing.insert[i]) :
 					postProcessing.insert[i];
 
