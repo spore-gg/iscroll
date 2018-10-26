@@ -1147,7 +1147,7 @@ IScroll.prototype = {
 	},
 
 	_initZoom: function () {
-		this.scrollerStyle[utils.style.transformOrigin] = '0 0';
+		this.scrollerStyle[utils.style.transformOrigin] = this.options.transformOrigin || '0 0';
 	},
 
 	_zoomStart: function (e) {
@@ -1157,7 +1157,7 @@ IScroll.prototype = {
 		this.touchesDistanceStart = Math.sqrt(c1 * c1 + c2 * c2);
 		this.startScale = this.scale;
 
-		this.originX = Math.abs(e.touches[0].pageX + e.touches[1].pageX) / 2 + this.wrapperOffset.left - this.x;
+		this.originX = Math.abs(e.touches[0].pageX + e.touches[1].pageX) / 2 + this.wrapperOffset.left + (this.options.transformX || 0) - this.x;
 		this.originY = Math.abs(e.touches[0].pageY + e.touches[1].pageY) / 2 + this.wrapperOffset.top - this.y;
 
 		this._execEvent('zoomStart');
@@ -1225,16 +1225,19 @@ IScroll.prototype = {
 		newX = this.originX - this.originX * lastScale + this.startX;
 		newY = this.originY - this.originY * lastScale + this.startY;
 
-		if ( newX > 0 ) {
-			newX = 0;
-		} else if ( newX < this.maxScrollX ) {
-			newX = this.maxScrollX;
-		}
+		// hack, for when zoom element is within tabs/snap-scroll
+		if ( ! this.options.ignoreZoomBounds ) {
+			if ( newX > 0 ) {
+				newX = 0;
+			} else if ( newX < this.maxScrollX ) {
+				newX = this.maxScrollX;
+			}
 
-		if ( newY > 0 ) {
-			newY = 0;
-		} else if ( newY < this.maxScrollY ) {
-			newY = this.maxScrollY;
+			if ( newY > 0 ) {
+				newY = 0;
+			} else if ( newY < this.maxScrollY ) {
+				newY = this.maxScrollY;
+			}
 		}
 
 		if ( this.x != newX || this.y != newY ) {
