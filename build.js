@@ -25,6 +25,17 @@ var releases = {
 		postProcessing: [ 'snap/build.json' ]
 	},
 
+	'lite-snap-zoom': {
+		files: [
+			'indicator/_initIndicators.js',
+			'zoom/zoom.js',
+			'snap/snap.js',
+			'default/_animate.js',
+			'zoom/handleEvent.js',
+		],
+		postProcessing: [ 'zoom/build.json', 'snap/build.json' ]
+	},
+
 	iscroll: {
 		files: [
 			'indicator/_initIndicators.js',
@@ -85,7 +96,7 @@ if ( !args.length ) {
 }
 
 if ( args[0] == 'dist' ) {
-	args = ['lite', 'lite-snap', 'iscroll', 'zoom', 'probe', 'infinite'];
+	args = ['lite', 'lite-snap', 'lite-snap-zoom', 'iscroll', 'zoom', 'probe', 'infinite'];
 }
 
 // Get the list of files

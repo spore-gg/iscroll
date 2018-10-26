@@ -321,9 +321,8 @@ function IScroll (el, options) {
 
 	this.options = {
 
-		resizeScrollbars: true,
-
-		mouseWheelSpeed: 20,
+		zoomMin: 1,
+		zoomMax: 4, startZoom: 1,
 
 		snapThreshold: 0.334,
 
@@ -390,15 +389,6 @@ function IScroll (el, options) {
 		}
 	}
 
-	if ( this.options.shrinkScrollbars == 'scale' ) {
-		this.options.useTransition = false;
-	}
-
-	this.options.invertWheelDirection = this.options.invertWheelDirection ? -1 : 1;
-
-	if ( this.options.probeType == 3 ) {
-		this.options.useTransition = false;	}
-
 // INSERT POINT: NORMALIZATION
 
 	// Some defaults
@@ -407,6 +397,8 @@ function IScroll (el, options) {
 	this.directionX = 0;
 	this.directionY = 0;
 	this._events = {};
+
+	this.scale = Math.min(Math.max(this.options.startZoom, this.options.zoomMin), this.options.zoomMax);
 
 // INSERT POINT: DEFAULTS
 
@@ -423,20 +415,12 @@ IScroll.prototype = {
 	_init: function () {
 		this._initEvents();
 
-		if ( this.options.scrollbars || this.options.indicators ) {
-			this._initIndicators();
-		}
-
-		if ( this.options.mouseWheel ) {
-			this._initWheel();
+		if ( this.options.zoom ) {
+			this._initZoom();
 		}
 
 		if ( this.options.snap ) {
 			this._initSnap();
-		}
-
-		if ( this.options.keyBindings ) {
-			this._initKeys();
 		}
 
 // INSERT POINT: _init
@@ -609,19 +593,13 @@ IScroll.prototype = {
 		this._translate(newX, newY);
 
 /* REPLACE START: _move */
+
 		if ( timestamp - this.startTime > 300 ) {
 			this.startTime = timestamp;
 			this.startX = this.x;
 			this.startY = this.y;
-
-			if ( this.options.probeType == 1 ) {
-				this._execEvent('scroll');
-			}
 		}
 
-		if ( this.options.probeType > 1 ) {
-			this._execEvent('scroll');
-		}
 /* REPLACE END: _move */
 
 	},
@@ -771,13 +749,11 @@ IScroll.prototype = {
 
 		var rect = utils.getRect(this.scroller);
 /* REPLACE START: refresh */
+	this.scrollerWidth	= Math.round(rect.width * this.scale);
+	this.scrollerHeight	= Math.round(rect.height * this.scale);
 
-		this.scrollerWidth	= rect.width;
-		this.scrollerHeight	= rect.height;
-
-		this.maxScrollX		= this.wrapperWidth - this.scrollerWidth;
-		this.maxScrollY		= this.wrapperHeight - this.scrollerHeight;
-
+	this.maxScrollX		= this.wrapperWidth - this.scrollerWidth;
+	this.maxScrollY		= this.wrapperHeight - this.scrollerHeight;
 /* REPLACE END: refresh */
 
 		this.hasHorizontalScroll	= this.options.scrollX && this.maxScrollX < 0;
@@ -934,28 +910,12 @@ IScroll.prototype = {
 			});
 		}
 
-
-		if ( this.indicators ) {
-			for ( var i = this.indicators.length; i--; ) {
-				this.indicators[i].transitionTime(time);
-			}
-		}
-
-
 // INSERT POINT: _transitionTime
 
 	},
 
 	_transitionTimingFunction: function (easing) {
 		this.scrollerStyle[utils.style.transitionTimingFunction] = easing;
-
-
-		if ( this.indicators ) {
-			for ( var i = this.indicators.length; i--; ) {
-				this.indicators[i].transitionTimingFunction(easing);
-			}
-		}
-
 
 // INSERT POINT: _transitionTimingFunction
 
@@ -964,11 +924,7 @@ IScroll.prototype = {
 	_translate: function (x, y) {
 		if ( this.options.useTransform ) {
 
-/* REPLACE START: _translate */
-
-			this.scrollerStyle[utils.style.transform] = 'translate(' + x + 'px,' + this.reverse * y + 'px)' + this.translateZ;
-
-/* REPLACE END: _translate */
+/* REPLACE START: _translate */			this.scrollerStyle[utils.style.transform] = 'translate(' + x + 'px,' + y + 'px) scale(' + this.scale + ') ' + this.translateZ;/* REPLACE END: _translate */
 
 		} else {
 			x = Math.round(x);
@@ -979,14 +935,6 @@ IScroll.prototype = {
 
 		this.x = x;
 		this.y = y;
-
-
-	if ( this.indicators ) {
-		for ( var i = this.indicators.length; i--; ) {
-			this.indicators[i].updatePosition();
-		}
-	}
-
 
 // INSERT POINT: _translate
 
@@ -1152,97 +1100,84 @@ IScroll.prototype = {
 		});
 	},
 
-	_initWheel: function () {
-		utils.addEvent(this.wrapper, 'wheel', this);
-		utils.addEvent(this.wrapper, 'mousewheel', this);
-		utils.addEvent(this.wrapper, 'DOMMouseScroll', this);
-
-		this.on('destroy', function () {
-			clearTimeout(this.wheelTimeout);
-			this.wheelTimeout = null;
-			utils.removeEvent(this.wrapper, 'wheel', this);
-			utils.removeEvent(this.wrapper, 'mousewheel', this);
-			utils.removeEvent(this.wrapper, 'DOMMouseScroll', this);
-		});
+	_initZoom: function () {
+		this.scrollerStyle[utils.style.transformOrigin] = '0 0';
 	},
 
-	_wheel: function (e) {
-		if ( !this.enabled ) {
+	_zoomStart: function (e) {
+		var c1 = Math.abs( e.touches[0].pageX - e.touches[1].pageX ),
+			c2 = Math.abs( e.touches[0].pageY - e.touches[1].pageY );
+
+		this.touchesDistanceStart = Math.sqrt(c1 * c1 + c2 * c2);
+		this.startScale = this.scale;
+
+		this.originX = Math.abs(e.touches[0].pageX + e.touches[1].pageX) / 2 + this.wrapperOffset.left - this.x;
+		this.originY = Math.abs(e.touches[0].pageY + e.touches[1].pageY) / 2 + this.wrapperOffset.top - this.y;
+
+		this._execEvent('zoomStart');
+	},
+
+	_zoom: function (e) {
+		if ( !this.enabled || utils.eventType[e.type] !== this.initiated ) {
 			return;
 		}
 
-		e.preventDefault();
-
-		var wheelDeltaX, wheelDeltaY,
-			newX, newY,
-			that = this;
-
-		if ( this.wheelTimeout === undefined ) {
-			that._execEvent('scrollStart');
+		if ( this.options.preventDefault ) {
+			e.preventDefault();
 		}
 
-		// Execute the scrollEnd event after 400ms the wheel stopped scrolling
-		clearTimeout(this.wheelTimeout);
-		this.wheelTimeout = setTimeout(function () {
-			if(!that.options.snap) {
-				that._execEvent('scrollEnd');
-			}
-			that.wheelTimeout = undefined;
-		}, 400);
+		var c1 = Math.abs( e.touches[0].pageX - e.touches[1].pageX ),
+			c2 = Math.abs( e.touches[0].pageY - e.touches[1].pageY ),
+			distance = Math.sqrt( c1 * c1 + c2 * c2 ),
+			scale = 1 / this.touchesDistanceStart * distance * this.startScale,
+			lastScale,
+			x, y;
 
-		if ( 'deltaX' in e ) {
-			if (e.deltaMode === 1) {
-				wheelDeltaX = -e.deltaX * this.options.mouseWheelSpeed;
-				wheelDeltaY = -e.deltaY * this.options.mouseWheelSpeed;
-			} else {
-				wheelDeltaX = -e.deltaX;
-				wheelDeltaY = -e.deltaY;
-			}
-		} else if ( 'wheelDeltaX' in e ) {
-			wheelDeltaX = e.wheelDeltaX / 120 * this.options.mouseWheelSpeed;
-			wheelDeltaY = e.wheelDeltaY / 120 * this.options.mouseWheelSpeed;
-		} else if ( 'wheelDelta' in e ) {
-			wheelDeltaX = wheelDeltaY = e.wheelDelta / 120 * this.options.mouseWheelSpeed;
-		} else if ( 'detail' in e ) {
-			wheelDeltaX = wheelDeltaY = -e.detail / 3 * this.options.mouseWheelSpeed;
-		} else {
+		this.scaled = true;
+
+		if ( scale < this.options.zoomMin ) {
+			scale = 0.5 * this.options.zoomMin * Math.pow(2.0, scale / this.options.zoomMin);
+		} else if ( scale > this.options.zoomMax ) {
+			scale = 2.0 * this.options.zoomMax * Math.pow(0.5, this.options.zoomMax / scale);
+		}
+
+		lastScale = scale / this.startScale;
+		x = this.originX - this.originX * lastScale + this.startX;
+		y = this.originY - this.originY * lastScale + this.startY;
+
+		this.scale = scale;
+
+		this.scrollTo(x, y, 0);
+	},
+
+	_zoomEnd: function (e) {
+		if ( !this.enabled || utils.eventType[e.type] !== this.initiated ) {
 			return;
 		}
 
-		wheelDeltaX *= this.options.invertWheelDirection;
-		wheelDeltaY *= this.options.invertWheelDirection;
-
-		if ( !this.hasVerticalScroll ) {
-			wheelDeltaX = wheelDeltaY;
-			wheelDeltaY = 0;
+		if ( this.options.preventDefault ) {
+			e.preventDefault();
 		}
 
-		if ( this.options.snap ) {
-			newX = this.currentPage.pageX;
-			newY = this.currentPage.pageY;
+		var newX, newY,
+			lastScale;
 
-			if ( wheelDeltaX > 0 ) {
-				newX--;
-			} else if ( wheelDeltaX < 0 ) {
-				newX++;
-			}
+		this.isInTransition = 0;
+		this.initiated = 0;
 
-			if ( wheelDeltaY > 0 ) {
-				newY--;
-			} else if ( wheelDeltaY < 0 ) {
-				newY++;
-			}
-
-			this.goToPage(newX, newY);
-
-			return;
+		if ( this.scale > this.options.zoomMax ) {
+			this.scale = this.options.zoomMax;
+		} else if ( this.scale < this.options.zoomMin ) {
+			this.scale = this.options.zoomMin;
 		}
 
-		newX = this.x + Math.round(this.hasHorizontalScroll ? wheelDeltaX : 0);
-		newY = this.y + Math.round(this.hasVerticalScroll ? wheelDeltaY : 0);
+		// Update boundaries
+		this.refresh();
 
-		this.directionX = wheelDeltaX > 0 ? -1 : wheelDeltaX < 0 ? 1 : 0;
-		this.directionY = wheelDeltaY > 0 ? -1 : wheelDeltaY < 0 ? 1 : 0;
+		lastScale = this.scale / this.startScale;
+
+		newX = this.originX - this.originX * lastScale + this.startX;
+		newY = this.originY - this.originY * lastScale + this.startY;
 
 		if ( newX > 0 ) {
 			newX = 0;
@@ -1256,13 +1191,83 @@ IScroll.prototype = {
 			newY = this.maxScrollY;
 		}
 
-		this.scrollTo(newX, newY, 0);
-
-		if ( this.options.probeType > 1 ) {
-			this._execEvent('scroll');
+		if ( this.x != newX || this.y != newY ) {
+			this.scrollTo(newX, newY, this.options.bounceTime);
 		}
 
-// INSERT POINT: _wheel
+		this.scaled = false;
+
+		this._execEvent('zoomEnd');
+	},
+
+	zoom: function (scale, x, y, time) {
+		if ( scale < this.options.zoomMin ) {
+			scale = this.options.zoomMin;
+		} else if ( scale > this.options.zoomMax ) {
+			scale = this.options.zoomMax;
+		}
+
+		if ( scale == this.scale ) {
+			return;
+		}
+
+		var relScale = scale / this.scale;
+
+		x = x === undefined ? this.wrapperWidth / 2 : x;
+		y = y === undefined ? this.wrapperHeight / 2 : y;
+		time = time === undefined ? 300 : time;
+
+		x = x + this.wrapperOffset.left - this.x;
+		y = y + this.wrapperOffset.top - this.y;
+
+		x = x - x * relScale + this.x;
+		y = y - y * relScale + this.y;
+
+		this.scale = scale;
+
+		this.refresh();		// update boundaries
+
+		if ( x > 0 ) {
+			x = 0;
+		} else if ( x < this.maxScrollX ) {
+			x = this.maxScrollX;
+		}
+
+		if ( y > 0 ) {
+			y = 0;
+		} else if ( y < this.maxScrollY ) {
+			y = this.maxScrollY;
+		}
+
+		this.scrollTo(x, y, time);
+	},
+
+	_wheelZoom: function (e) {
+		var wheelDeltaY,
+			deltaScale,
+			that = this;
+
+		// Execute the zoomEnd event after 400ms the wheel stopped scrolling
+		clearTimeout(this.wheelTimeout);
+		this.wheelTimeout = setTimeout(function () {
+			that._execEvent('zoomEnd');
+		}, 400);
+
+		if ( 'deltaX' in e ) {
+			wheelDeltaY = -e.deltaY / Math.abs(e.deltaY);
+		} else if ('wheelDeltaX' in e) {
+			wheelDeltaY = e.wheelDeltaY / Math.abs(e.wheelDeltaY);
+		} else if('wheelDelta' in e) {
+			wheelDeltaY = e.wheelDelta / Math.abs(e.wheelDelta);
+		} else if ('detail' in e) {
+			wheelDeltaY = -e.detail / Math.abs(e.wheelDelta);
+		} else {
+			return;
+		}
+
+		deltaScale = this.scale + wheelDeltaY / 5;
+
+		this.zoom(deltaScale, e.pageX, e.pageY, 0);
 	},
 
 	_initSnap: function () {
@@ -1514,129 +1519,6 @@ IScroll.prototype = {
 		this.goToPage(x, y, time, easing);
 	},
 
-	_initKeys: function (e) {
-		// default key bindings
-		var keys = {
-			pageUp: 33,
-			pageDown: 34,
-			end: 35,
-			home: 36,
-			left: 37,
-			up: 38,
-			right: 39,
-			down: 40
-		};
-		var i;
-
-		// if you give me characters I give you keycode
-		if ( typeof this.options.keyBindings == 'object' ) {
-			for ( i in this.options.keyBindings ) {
-				if ( typeof this.options.keyBindings[i] == 'string' ) {
-					this.options.keyBindings[i] = this.options.keyBindings[i].toUpperCase().charCodeAt(0);
-				}
-			}
-		} else {
-			this.options.keyBindings = {};
-		}
-
-		for ( i in keys ) {
-			this.options.keyBindings[i] = this.options.keyBindings[i] || keys[i];
-		}
-
-		utils.addEvent(window, 'keydown', this);
-
-		this.on('destroy', function () {
-			utils.removeEvent(window, 'keydown', this);
-		});
-	},
-
-	_key: function (e) {
-		if ( !this.enabled ) {
-			return;
-		}
-
-		var snap = this.options.snap,	// we are using this alot, better to cache it
-			newX = snap ? this.currentPage.pageX : this.x,
-			newY = snap ? this.currentPage.pageY : this.y,
-			now = utils.getTime(),
-			prevTime = this.keyTime || 0,
-			acceleration = 0.250,
-			pos;
-
-		if ( this.options.useTransition && this.isInTransition ) {
-			pos = this.getComputedPosition();
-
-			this._translate(Math.round(pos.x), Math.round(pos.y));
-			this.isInTransition = false;
-		}
-
-		this.keyAcceleration = now - prevTime < 200 ? Math.min(this.keyAcceleration + acceleration, 50) : 0;
-
-		switch ( e.keyCode ) {
-			case this.options.keyBindings.pageUp:
-				if ( this.hasHorizontalScroll && !this.hasVerticalScroll ) {
-					newX += snap ? 1 : this.wrapperWidth;
-				} else {
-					newY += snap ? 1 : this.wrapperHeight;
-				}
-				break;
-			case this.options.keyBindings.pageDown:
-				if ( this.hasHorizontalScroll && !this.hasVerticalScroll ) {
-					newX -= snap ? 1 : this.wrapperWidth;
-				} else {
-					newY -= snap ? 1 : this.wrapperHeight;
-				}
-				break;
-			case this.options.keyBindings.end:
-				newX = snap ? this.pages.length-1 : this.maxScrollX;
-				newY = snap ? this.pages[0].length-1 : this.maxScrollY;
-				break;
-			case this.options.keyBindings.home:
-				newX = 0;
-				newY = 0;
-				break;
-			case this.options.keyBindings.left:
-				newX += snap ? -1 : 5 + this.keyAcceleration>>0;
-				break;
-			case this.options.keyBindings.up:
-				newY += snap ? 1 : 5 + this.keyAcceleration>>0;
-				break;
-			case this.options.keyBindings.right:
-				newX -= snap ? -1 : 5 + this.keyAcceleration>>0;
-				break;
-			case this.options.keyBindings.down:
-				newY -= snap ? 1 : 5 + this.keyAcceleration>>0;
-				break;
-			default:
-				return;
-		}
-
-		if ( snap ) {
-			this.goToPage(newX, newY);
-			return;
-		}
-
-		if ( newX > 0 ) {
-			newX = 0;
-			this.keyAcceleration = 0;
-		} else if ( newX < this.maxScrollX ) {
-			newX = this.maxScrollX;
-			this.keyAcceleration = 0;
-		}
-
-		if ( newY > 0 ) {
-			newY = 0;
-			this.keyAcceleration = 0;
-		} else if ( newY < this.maxScrollY ) {
-			newY = this.maxScrollY;
-			this.keyAcceleration = 0;
-		}
-
-		this.scrollTo(newX, newY, 0);
-
-		this.keyTime = now;
-	},
-
 	_animate: function (destX, destY, duration, easingFn) {
 		var that = this,
 			startX = this.x,
@@ -1652,7 +1534,7 @@ IScroll.prototype = {
 			if ( now >= destTime ) {
 				that.isAnimating = false;
 				that._translate(destX, destY);
-				
+
 				if ( !that.resetPosition(that.options.bounceTime) ) {
 					that._execEvent('scrollEnd');
 				}
@@ -1669,16 +1551,11 @@ IScroll.prototype = {
 			if ( that.isAnimating ) {
 				rAF(step);
 			}
-
-			if ( that.options.probeType == 3 ) {
-				that._execEvent('scroll');
-			}
 		}
 
 		this.isAnimating = true;
 		step();
 	},
-
 	handleEvent: function (e) {
 		switch ( e.type ) {
 			case 'touchstart':
@@ -1686,11 +1563,19 @@ IScroll.prototype = {
 			case 'MSPointerDown':
 			case 'mousedown':
 				this._start(e);
+
+				if ( this.options.zoom && e.touches && e.touches.length > 1 ) {
+					this._zoomStart(e);
+				}
 				break;
 			case 'touchmove':
 			case 'pointermove':
 			case 'MSPointerMove':
 			case 'mousemove':
+				if ( this.options.zoom && e.touches && e.touches[1] ) {
+					this._zoom(e);
+					return;
+				}
 				this._move(e);
 				break;
 			case 'touchend':
@@ -1701,6 +1586,10 @@ IScroll.prototype = {
 			case 'pointercancel':
 			case 'MSPointerCancel':
 			case 'mousecancel':
+				if ( this.scaled ) {
+					this._zoomEnd(e);
+					return;
+				}
 				this._end(e);
 				break;
 			case 'orientationchange':
@@ -1716,479 +1605,19 @@ IScroll.prototype = {
 			case 'wheel':
 			case 'DOMMouseScroll':
 			case 'mousewheel':
+				if ( this.options.wheelAction == 'zoom' ) {
+					this._wheelZoom(e);
+					return;	
+				}
 				this._wheel(e);
 				break;
 			case 'keydown':
 				this._key(e);
 				break;
-			case 'click':
-				if ( this.enabled && !e._constructed ) {
-					e.preventDefault();
-					e.stopPropagation();
-				}
-				break;
 		}
 	}
+
 };
-function createDefaultScrollbar (direction, interactive, type) {
-	var scrollbar = document.createElement('div'),
-		indicator = document.createElement('div');
-
-	if ( type === true ) {
-		scrollbar.style.cssText = 'position:absolute;z-index:9999';
-		indicator.style.cssText = '-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box;position:absolute;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.9);border-radius:3px';
-	}
-
-	indicator.className = 'iScrollIndicator';
-
-	if ( direction == 'h' ) {
-		if ( type === true ) {
-			scrollbar.style.cssText += ';height:7px;left:2px;right:2px;bottom:0';
-			indicator.style.height = '100%';
-		}
-		scrollbar.className = 'iScrollHorizontalScrollbar';
-	} else {
-		if ( type === true ) {
-			scrollbar.style.cssText += ';width:7px;bottom:2px;top:2px;right:1px';
-			indicator.style.width = '100%';
-		}
-		scrollbar.className = 'iScrollVerticalScrollbar';
-	}
-
-	scrollbar.style.cssText += ';overflow:hidden';
-
-	if ( !interactive ) {
-		scrollbar.style.pointerEvents = 'none';
-	}
-
-	scrollbar.appendChild(indicator);
-
-	return scrollbar;
-}
-
-function Indicator (scroller, options) {
-	this.wrapper = typeof options.el == 'string' ? document.querySelector(options.el) : options.el;
-	this.wrapperStyle = this.wrapper.style;
-	this.indicator = this.wrapper.children[0];
-	this.indicatorStyle = this.indicator.style;
-	this.scroller = scroller;
-
-	this.options = {
-		listenX: true,
-		listenY: true,
-		interactive: false,
-		resize: true,
-		defaultScrollbars: false,
-		shrink: false,
-		fade: false,
-		speedRatioX: 0,
-		speedRatioY: 0
-	};
-
-	for ( var i in options ) {
-		this.options[i] = options[i];
-	}
-
-	this.sizeRatioX = 1;
-	this.sizeRatioY = 1;
-	this.maxPosX = 0;
-	this.maxPosY = 0;
-
-	if ( this.options.interactive ) {
-		if ( !this.options.disableTouch ) {
-			utils.addEvent(this.indicator, 'touchstart', this);
-			utils.addEvent(window, 'touchend', this);
-		}
-		if ( !this.options.disablePointer ) {
-			utils.addEvent(this.indicator, utils.prefixPointerEvent('pointerdown'), this);
-			utils.addEvent(window, utils.prefixPointerEvent('pointerup'), this);
-		}
-		if ( !this.options.disableMouse ) {
-			utils.addEvent(this.indicator, 'mousedown', this);
-			utils.addEvent(window, 'mouseup', this);
-		}
-	}
-
-	if ( this.options.fade ) {
-		this.wrapperStyle[utils.style.transform] = this.scroller.translateZ;
-		var durationProp = utils.style.transitionDuration;
-		if(!durationProp) {
-			return;
-		}
-		this.wrapperStyle[durationProp] = utils.isBadAndroid ? '0.0001ms' : '0ms';
-		// remove 0.0001ms
-		var self = this;
-		if(utils.isBadAndroid) {
-			rAF(function() {
-				if(self.wrapperStyle[durationProp] === '0.0001ms') {
-					self.wrapperStyle[durationProp] = '0s';
-				}
-			});
-		}
-		this.wrapperStyle.opacity = '0';
-	}
-}
-
-Indicator.prototype = {
-	handleEvent: function (e) {
-		switch ( e.type ) {
-			case 'touchstart':
-			case 'pointerdown':
-			case 'MSPointerDown':
-			case 'mousedown':
-				this._start(e);
-				break;
-			case 'touchmove':
-			case 'pointermove':
-			case 'MSPointerMove':
-			case 'mousemove':
-				this._move(e);
-				break;
-			case 'touchend':
-			case 'pointerup':
-			case 'MSPointerUp':
-			case 'mouseup':
-			case 'touchcancel':
-			case 'pointercancel':
-			case 'MSPointerCancel':
-			case 'mousecancel':
-				this._end(e);
-				break;
-		}
-	},
-
-	destroy: function () {
-		if ( this.options.fadeScrollbars ) {
-			clearTimeout(this.fadeTimeout);
-			this.fadeTimeout = null;
-		}
-		if ( this.options.interactive ) {
-			utils.removeEvent(this.indicator, 'touchstart', this);
-			utils.removeEvent(this.indicator, utils.prefixPointerEvent('pointerdown'), this);
-			utils.removeEvent(this.indicator, 'mousedown', this);
-
-			utils.removeEvent(window, 'touchmove', this);
-			utils.removeEvent(window, utils.prefixPointerEvent('pointermove'), this);
-			utils.removeEvent(window, 'mousemove', this);
-
-			utils.removeEvent(window, 'touchend', this);
-			utils.removeEvent(window, utils.prefixPointerEvent('pointerup'), this);
-			utils.removeEvent(window, 'mouseup', this);
-		}
-
-		if ( this.options.defaultScrollbars && this.wrapper.parentNode ) {
-			this.wrapper.parentNode.removeChild(this.wrapper);
-		}
-	},
-
-	_start: function (e) {
-		var point = e.touches ? e.touches[0] : e;
-
-		e.preventDefault();
-		e.stopPropagation();
-
-		this.transitionTime();
-
-		this.initiated = true;
-		this.moved = false;
-		this.lastPointX	= point.pageX;
-		this.lastPointY	= point.pageY;
-
-		this.startTime	= utils.getTime();
-
-		if ( !this.options.disableTouch ) {
-			utils.addEvent(window, 'touchmove', this);
-		}
-		if ( !this.options.disablePointer ) {
-			utils.addEvent(window, utils.prefixPointerEvent('pointermove'), this);
-		}
-		if ( !this.options.disableMouse ) {
-			utils.addEvent(window, 'mousemove', this);
-		}
-
-		this.scroller._execEvent('beforeScrollStart');
-	},
-
-	_move: function (e) {
-		var point = e.touches ? e.touches[0] : e,
-			deltaX, deltaY,
-			newX, newY,
-			timestamp = utils.getTime();
-
-		if ( !this.moved ) {
-			this.scroller._execEvent('scrollStart');
-		}
-
-		this.moved = true;
-
-		deltaX = point.pageX - this.lastPointX;
-		this.lastPointX = point.pageX;
-
-		deltaY = point.pageY - this.lastPointY;
-		this.lastPointY = point.pageY;
-
-		newX = this.x + deltaX;
-		newY = this.y + deltaY;
-
-		this._pos(newX, newY);
-
-
-		if ( this.scroller.options.probeType == 1 && timestamp - this.startTime > 300 ) {
-			this.startTime = timestamp;
-			this.scroller._execEvent('scroll');
-		} else if ( this.scroller.options.probeType > 1 ) {
-			this.scroller._execEvent('scroll');
-		}
-
-
-// INSERT POINT: indicator._move
-
-		e.preventDefault();
-		e.stopPropagation();
-	},
-
-	_end: function (e) {
-		if ( !this.initiated ) {
-			return;
-		}
-
-		this.initiated = false;
-
-		e.preventDefault();
-		e.stopPropagation();
-
-		utils.removeEvent(window, 'touchmove', this);
-		utils.removeEvent(window, utils.prefixPointerEvent('pointermove'), this);
-		utils.removeEvent(window, 'mousemove', this);
-
-		if ( this.scroller.options.snap ) {
-			var snap = this.scroller._nearestSnap(this.scroller.x, this.scroller.y);
-
-			var time = this.options.snapSpeed || Math.max(
-					Math.max(
-						Math.min(Math.abs(this.scroller.x - snap.x), 1000),
-						Math.min(Math.abs(this.scroller.y - snap.y), 1000)
-					), 300);
-
-			if ( this.scroller.x != snap.x || this.scroller.y != snap.y ) {
-				this.scroller.directionX = 0;
-				this.scroller.directionY = 0;
-				this.scroller.currentPage = snap;
-				this.scroller.scrollTo(snap.x, snap.y, time, this.scroller.options.bounceEasing);
-			}
-		}
-
-		if ( this.moved ) {
-			this.scroller._execEvent('scrollEnd');
-		}
-	},
-
-	transitionTime: function (time) {
-		time = time || 0;
-		var durationProp = utils.style.transitionDuration;
-		if(!durationProp) {
-			return;
-		}
-
-		this.indicatorStyle[durationProp] = time + 'ms';
-
-		if ( !time && utils.isBadAndroid ) {
-			this.indicatorStyle[durationProp] = '0.0001ms';
-			// remove 0.0001ms
-			var self = this;
-			rAF(function() {
-				if(self.indicatorStyle[durationProp] === '0.0001ms') {
-					self.indicatorStyle[durationProp] = '0s';
-				}
-			});
-		}
-	},
-
-	transitionTimingFunction: function (easing) {
-		this.indicatorStyle[utils.style.transitionTimingFunction] = easing;
-	},
-
-	refresh: function () {
-		this.transitionTime();
-
-		if ( this.options.listenX && !this.options.listenY ) {
-			this.indicatorStyle.display = this.scroller.hasHorizontalScroll ? 'block' : 'none';
-		} else if ( this.options.listenY && !this.options.listenX ) {
-			this.indicatorStyle.display = this.scroller.hasVerticalScroll ? 'block' : 'none';
-		} else {
-			this.indicatorStyle.display = this.scroller.hasHorizontalScroll || this.scroller.hasVerticalScroll ? 'block' : 'none';
-		}
-
-		if ( this.scroller.hasHorizontalScroll && this.scroller.hasVerticalScroll ) {
-			utils.addClass(this.wrapper, 'iScrollBothScrollbars');
-			utils.removeClass(this.wrapper, 'iScrollLoneScrollbar');
-
-			if ( this.options.defaultScrollbars && this.options.customStyle ) {
-				if ( this.options.listenX ) {
-					this.wrapper.style.right = '8px';
-				} else {
-					this.wrapper.style.bottom = '8px';
-				}
-			}
-		} else {
-			utils.removeClass(this.wrapper, 'iScrollBothScrollbars');
-			utils.addClass(this.wrapper, 'iScrollLoneScrollbar');
-
-			if ( this.options.defaultScrollbars && this.options.customStyle ) {
-				if ( this.options.listenX ) {
-					this.wrapper.style.right = '2px';
-				} else {
-					this.wrapper.style.bottom = '2px';
-				}
-			}
-		}
-
-		utils.getRect(this.wrapper);	// force refresh
-
-		if ( this.options.listenX ) {
-			this.wrapperWidth = this.wrapper.clientWidth;
-			if ( this.options.resize ) {
-				this.indicatorWidth = Math.max(Math.round(this.wrapperWidth * this.wrapperWidth / (this.scroller.scrollerWidth || this.wrapperWidth || 1)), 8);
-				this.indicatorStyle.width = this.indicatorWidth + 'px';
-			} else {
-				this.indicatorWidth = this.indicator.clientWidth;
-			}
-
-			this.maxPosX = this.wrapperWidth - this.indicatorWidth;
-
-			if ( this.options.shrink == 'clip' ) {
-				this.minBoundaryX = -this.indicatorWidth + 8;
-				this.maxBoundaryX = this.wrapperWidth - 8;
-			} else {
-				this.minBoundaryX = 0;
-				this.maxBoundaryX = this.maxPosX;
-			}
-
-			this.sizeRatioX = this.options.speedRatioX || (this.scroller.maxScrollX && (this.maxPosX / this.scroller.maxScrollX));
-		}
-
-		if ( this.options.listenY ) {
-			this.wrapperHeight = this.wrapper.clientHeight;
-			if ( this.options.resize ) {
-				this.indicatorHeight = Math.max(Math.round(this.wrapperHeight * this.wrapperHeight / (this.scroller.scrollerHeight || this.wrapperHeight || 1)), 8);
-				this.indicatorStyle.height = this.indicatorHeight + 'px';
-			} else {
-				this.indicatorHeight = this.indicator.clientHeight;
-			}
-
-			this.maxPosY = this.wrapperHeight - this.indicatorHeight;
-
-			if ( this.options.shrink == 'clip' ) {
-				this.minBoundaryY = -this.indicatorHeight + 8;
-				this.maxBoundaryY = this.wrapperHeight - 8;
-			} else {
-				this.minBoundaryY = 0;
-				this.maxBoundaryY = this.maxPosY;
-			}
-
-			this.maxPosY = this.wrapperHeight - this.indicatorHeight;
-			this.sizeRatioY = this.options.speedRatioY || (this.scroller.maxScrollY && (this.maxPosY / this.scroller.maxScrollY));
-		}
-
-		this.updatePosition();
-	},
-
-	updatePosition: function () {
-		var x = this.options.listenX && Math.round(this.sizeRatioX * this.scroller.x) || 0,
-			y = this.options.listenY && Math.round(this.sizeRatioY * this.scroller.y) || 0;
-
-		if ( !this.options.ignoreBoundaries ) {
-			if ( x < this.minBoundaryX ) {
-				if ( this.options.shrink == 'scale' ) {
-					this.width = Math.max(this.indicatorWidth + x, 8);
-					this.indicatorStyle.width = this.width + 'px';
-				}
-				x = this.minBoundaryX;
-			} else if ( x > this.maxBoundaryX ) {
-				if ( this.options.shrink == 'scale' ) {
-					this.width = Math.max(this.indicatorWidth - (x - this.maxPosX), 8);
-					this.indicatorStyle.width = this.width + 'px';
-					x = this.maxPosX + this.indicatorWidth - this.width;
-				} else {
-					x = this.maxBoundaryX;
-				}
-			} else if ( this.options.shrink == 'scale' && this.width != this.indicatorWidth ) {
-				this.width = this.indicatorWidth;
-				this.indicatorStyle.width = this.width + 'px';
-			}
-
-			if ( y < this.minBoundaryY ) {
-				if ( this.options.shrink == 'scale' ) {
-					this.height = Math.max(this.indicatorHeight + y * 3, 8);
-					this.indicatorStyle.height = this.height + 'px';
-				}
-				y = this.minBoundaryY;
-			} else if ( y > this.maxBoundaryY ) {
-				if ( this.options.shrink == 'scale' ) {
-					this.height = Math.max(this.indicatorHeight - (y - this.maxPosY) * 3, 8);
-					this.indicatorStyle.height = this.height + 'px';
-					y = this.maxPosY + this.indicatorHeight - this.height;
-				} else {
-					y = this.maxBoundaryY;
-				}
-			} else if ( this.options.shrink == 'scale' && this.height != this.indicatorHeight ) {
-				this.height = this.indicatorHeight;
-				this.indicatorStyle.height = this.height + 'px';
-			}
-		}
-
-		this.x = x;
-		this.y = y;
-
-		if ( this.scroller.options.useTransform ) {
-			this.indicatorStyle[utils.style.transform] = 'translate(' + x + 'px,' + y + 'px)' + this.scroller.translateZ;
-		} else {
-			this.indicatorStyle.left = x + 'px';
-			this.indicatorStyle.top = y + 'px';
-		}
-	},
-
-	_pos: function (x, y) {
-		if ( x < 0 ) {
-			x = 0;
-		} else if ( x > this.maxPosX ) {
-			x = this.maxPosX;
-		}
-
-		if ( y < 0 ) {
-			y = 0;
-		} else if ( y > this.maxPosY ) {
-			y = this.maxPosY;
-		}
-
-		x = this.options.listenX ? Math.round(x / this.sizeRatioX) : this.scroller.x;
-		y = this.options.listenY ? Math.round(y / this.sizeRatioY) : this.scroller.y;
-
-		this.scroller.scrollTo(x, y);
-	},
-
-	fade: function (val, hold) {
-		if ( hold && !this.visible ) {
-			return;
-		}
-
-		clearTimeout(this.fadeTimeout);
-		this.fadeTimeout = null;
-
-		var time = val ? 250 : 500,
-			delay = val ? 0 : 300;
-
-		val = val ? '1' : '0';
-
-		this.wrapperStyle[utils.style.transitionDuration] = time + 'ms';
-
-		this.fadeTimeout = setTimeout((function (val) {
-			this.wrapperStyle.opacity = val;
-			this.visible = +val;
-		}).bind(this, val), delay);
-	}
-};
-
 IScroll.utils = utils;
 
 if ( typeof module != 'undefined' && module.exports ) {
