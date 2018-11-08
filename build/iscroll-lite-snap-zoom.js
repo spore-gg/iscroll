@@ -924,7 +924,7 @@ IScroll.prototype = {
 	_translate: function (x, y) {
 		if ( this.options.useTransform ) {
 
-/* REPLACE START: _translate */			this.scrollerStyle[utils.style.transform] = 'translate(' + x + 'px,' + y + 'px) scale(' + this.scale + ') ' + this.translateZ;/* REPLACE END: _translate */
+/* REPLACE START: _translate */			this.scrollerStyle[utils.style.transform] = 'translate(' + x + 'px,' + this.reverse * y + 'px) scale(' + this.scale + ') ' + this.translateZ;/* REPLACE END: _translate */
 
 		} else {
 			x = Math.round(x);
@@ -1610,7 +1610,7 @@ IScroll.prototype = {
 			case 'mousewheel':
 				if ( this.options.wheelAction == 'zoom' ) {
 					this._wheelZoom(e);
-					return;	
+					return;
 				}
 				this._wheel(e);
 				break;
