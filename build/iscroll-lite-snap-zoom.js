@@ -637,13 +637,17 @@ IScroll.prototype = {
 
 		// we scrolled less than 10 pixels
 		if ( !this.moved ) {
-			if ( this.options.tap ) {
-				utils.tap(e, this.options.tap);
-			}
+      if (duration > 500) {
+        utils.tap(e, 'longTap');
+      } else {
+        if ( this.options.tap ) {
+  				utils.tap(e, this.options.tap);
+  			}
 
-			if ( this.options.click ) {
-				utils.click(e);
-			}
+  			if ( this.options.click ) {
+  				utils.click(e);
+  			}
+      }
 
 			this._execEvent('scrollCancel');
 			return;
