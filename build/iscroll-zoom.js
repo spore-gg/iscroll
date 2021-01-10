@@ -1,4 +1,4 @@
-/*! iScroll v5.2.0-snapshot ~ (c) 2008-2018 Matteo Spinelli ~ http://cubiq.org/license */
+/*! iScroll v5.2.0-snapshot ~ (c) 2008-2021 Matteo Spinelli ~ http://cubiq.org/license */
 (function (window, document, Math) {
 var rAF = window.requestAnimationFrame	||
 	window.webkitRequestAnimationFrame	||
@@ -350,7 +350,8 @@ function IScroll (el, options) {
 		HWCompositing: true,
 		useTransition: true,
 		useTransform: true,
-		bindToWrapper: typeof window.onmousedown === "undefined"
+		bindToWrapper: typeof window.onmousedown === "undefined",
+		initiatingElement: this.wrapper
 	};
 
 	for ( var i in options ) {
@@ -659,13 +660,17 @@ IScroll.prototype = {
 
 		// we scrolled less than 10 pixels
 		if ( !this.moved ) {
-			if ( this.options.tap ) {
-				utils.tap(e, this.options.tap);
-			}
+			if (duration > 500) {
+        utils.tap(e, 'longTap');
+      } else {
+        if ( this.options.tap ) {
+  				utils.tap(e, this.options.tap);
+  			}
 
-			if ( this.options.click ) {
-				utils.click(e);
-			}
+  			if ( this.options.click ) {
+  				utils.click(e);
+  			}
+      }
 
 			this._execEvent('scrollCancel');
 			return;
@@ -962,7 +967,7 @@ IScroll.prototype = {
 	_translate: function (x, y) {
 		if ( this.options.useTransform ) {
 
-/* REPLACE START: _translate */			this.scrollerStyle[utils.style.transform] = 'translate(' + x + 'px,' + y + 'px) scale(' + this.scale + ') ' + this.translateZ;/* REPLACE END: _translate */
+/* REPLACE START: _translate */			this.scrollerStyle[utils.style.transform] = 'translate(' + x + 'px,' + this.reverse * y + 'px) scale(' + this.scale + ') ' + this.translateZ;/* REPLACE END: _translate */
 
 		} else {
 			x = Math.round(x);
@@ -998,21 +1003,21 @@ IScroll.prototype = {
 		}
 
 		if ( !this.options.disableMouse ) {
-			eventType(this.wrapper, 'mousedown', this);
+			eventType(this.options.initiatingElement, 'mousedown', this);
 			eventType(target, 'mousemove', this);
 			eventType(target, 'mousecancel', this);
 			eventType(target, 'mouseup', this);
 		}
 
 		if ( utils.hasPointer && !this.options.disablePointer ) {
-			eventType(this.wrapper, utils.prefixPointerEvent('pointerdown'), this);
+			eventType(this.options.initiatingElement, utils.prefixPointerEvent('pointerdown'), this);
 			eventType(target, utils.prefixPointerEvent('pointermove'), this);
 			eventType(target, utils.prefixPointerEvent('pointercancel'), this);
 			eventType(target, utils.prefixPointerEvent('pointerup'), this);
 		}
 
 		if ( utils.hasTouch && !this.options.disableTouch ) {
-			eventType(this.wrapper, 'touchstart', this);
+			eventType(this.options.initiatingElement, 'touchstart', this);
 			eventType(target, 'touchmove', this);
 			eventType(target, 'touchcancel', this);
 			eventType(target, 'touchend', this);

@@ -26,7 +26,8 @@ function IScroll (el, options) {
 		HWCompositing: true,
 		useTransition: true,
 		useTransform: true,
-		bindToWrapper: typeof window.onmousedown === "undefined"
+		bindToWrapper: typeof window.onmousedown === "undefined",
+		initiatingElement: this.wrapper
 	};
 
 	for ( var i in options ) {
@@ -615,21 +616,21 @@ IScroll.prototype = {
 		}
 
 		if ( !this.options.disableMouse ) {
-			eventType(this.wrapper, 'mousedown', this);
+			eventType(this.options.initiatingElement, 'mousedown', this);
 			eventType(target, 'mousemove', this);
 			eventType(target, 'mousecancel', this);
 			eventType(target, 'mouseup', this);
 		}
 
 		if ( utils.hasPointer && !this.options.disablePointer ) {
-			eventType(this.wrapper, utils.prefixPointerEvent('pointerdown'), this);
+			eventType(this.options.initiatingElement, utils.prefixPointerEvent('pointerdown'), this);
 			eventType(target, utils.prefixPointerEvent('pointermove'), this);
 			eventType(target, utils.prefixPointerEvent('pointercancel'), this);
 			eventType(target, utils.prefixPointerEvent('pointerup'), this);
 		}
 
 		if ( utils.hasTouch && !this.options.disableTouch ) {
-			eventType(this.wrapper, 'touchstart', this);
+			eventType(this.options.initiatingElement, 'touchstart', this);
 			eventType(target, 'touchmove', this);
 			eventType(target, 'touchcancel', this);
 			eventType(target, 'touchend', this);
