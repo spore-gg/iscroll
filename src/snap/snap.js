@@ -84,7 +84,10 @@
 				}
 			}
 
-			this.goToPage(this.currentPage.pageX || 0, this.currentPage.pageY || 0, 0);
+			var time = this.refreshSnapTime || 0;
+			this.refreshSnapTime = 0; // reset
+
+			this.goToPage(this.currentPage.pageX || 0, this.currentPage.pageY || 0, time);
 
 			// Update snap threshold if needed
 			if ( this.options.snapThreshold % 1 === 0 ) {

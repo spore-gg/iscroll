@@ -399,8 +399,10 @@ IScroll.prototype = {
 		this.enabled = true;
 	},
 
-	refresh: function () {
+	refresh: function (snapTime) {
 		utils.getRect(this.wrapper);		// Force reflow
+
+		this.refreshSnapTime = snapTime;
 
 		this.wrapperWidth	= this.wrapper.clientWidth;
 		this.wrapperHeight	= this.wrapper.clientHeight;

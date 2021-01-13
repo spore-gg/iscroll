@@ -746,8 +746,10 @@ IScroll.prototype = {
 		this.enabled = true;
 	},
 
-	refresh: function () {
+	refresh: function (snapTime) {
 		utils.getRect(this.wrapper);		// Force reflow
+
+		this.refreshSnapTime = snapTime;
 
 		this.wrapperWidth	= this.wrapper.clientWidth;
 		this.wrapperHeight	= this.wrapper.clientHeight;
@@ -1363,7 +1365,10 @@ IScroll.prototype = {
 				}
 			}
 
-			this.goToPage(this.currentPage.pageX || 0, this.currentPage.pageY || 0, 0);
+			var time = this.refreshSnapTime || 0;
+			this.refreshSnapTime = 0; // reset
+
+			this.goToPage(this.currentPage.pageX || 0, this.currentPage.pageY || 0, time);
 
 			// Update snap threshold if needed
 			if ( this.options.snapThreshold % 1 === 0 ) {
