@@ -7,6 +7,10 @@
 		}
 
 		this.on('refresh', function () {
+			// don't snap if user is zoomed in
+			if (this.scale && this.scale !== 1) {
+				return;
+			}
 			var i = 0, l,
 				m = 0, n,
 				cx, cy,
@@ -100,6 +104,10 @@
 		});
 
 		this.on('flick', function () {
+			// don't snap if user is zoomed in
+			if (this.scale && this.scale !== 1) {
+				return;
+			}
 			var time = this.options.snapSpeed || Math.max(
 					Math.max(
 						Math.min(Math.abs(this.x - this.startX), 1000),

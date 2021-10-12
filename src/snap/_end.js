@@ -1,5 +1,5 @@
-
-		if ( this.options.snap ) {
+		// don't snap if user is zoomed in
+		if ( this.options.snap && this.scale === 1 ) {
 			var snap = this._nearestSnap(newX, newY);
 			this.currentPage = snap;
 			time = this.options.snapSpeed || Math.max(
