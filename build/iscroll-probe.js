@@ -1396,7 +1396,7 @@ IScroll.prototype = {
 	},
 
 	_nearestSnap: function (x, y) {
-		if ( !this.pages.length ) {
+		if ( !this.pages || !this.pages.length ) {
 			return { x: 0, y: 0, pageX: 0, pageY: 0 };
 		}
 
