@@ -123,7 +123,7 @@
 	},
 
 	_nearestSnap: function (x, y) {
-		if ( !this.pages || !this.pages.length ) {
+		if ( !this.pages.length ) {
 			return { x: 0, y: 0, pageX: 0, pageY: 0 };
 		}
 
@@ -154,6 +154,11 @@
 				x = this.pages[i][0].x;
 				break;
 			}
+		}
+
+		// for some reason this is sometimes undefined, and i can't figure out why
+		if (!this.pages[i]) {
+			throw new Error('length of undefined, ' + i + ', ' + this.pages.length + ', ' + l);
 		}
 
 		l = this.pages[i].length;
