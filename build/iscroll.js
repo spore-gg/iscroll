@@ -1416,9 +1416,10 @@ IScroll.prototype = {
 			}
 		}
 
-		// for some reason this is sometimes undefined, and i can't figure out why
-		if (!this.pages[i]) {
-			throw new Error('length of undefined, ' + JSON.stringify(this.pages));
+		// if we didn't hit any breaks in the for, just use the last page index
+		// otherwise it tries to get .length of undefined
+		if (i === l) {
+			i = l - 1;
 		}
 
 		l = this.pages[i].length;
