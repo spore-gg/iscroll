@@ -158,7 +158,7 @@
 
 		// for some reason this is sometimes undefined, and i can't figure out why
 		if (!this.pages[i]) {
-			throw new Error('length of undefined, ' + JSON.stringify(this.pages.length));
+			throw new Error('length of undefined, ' + JSON.stringify(this.pages));
 		}
 
 		l = this.pages[i].length;
