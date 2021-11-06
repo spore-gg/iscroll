@@ -1418,7 +1418,7 @@ IScroll.prototype = {
 
 		// for some reason this is sometimes undefined, and i can't figure out why
 		if (!this.pages[i]) {
-			throw new Error('length of undefined, ' + i + ', ' + this.pages.length + ', ' + l);
+			throw new Error('length of undefined, ' + JSON.stringify(this.pages.length));
 		}
 
 		l = this.pages[i].length;
